@@ -49,7 +49,7 @@ Options:
 3. The output prefix. `pbfusion` writes multiple files, prefixed with the user specified string.
 
 ```
-A tool for detecting gene fusions in aligned PacBio RNA data
+A tool for detecting fusion genes in aligned PacBio RNA data
 
 Usage: pbfusion [OPTIONS] --bam <FILE> --reference-gtf <REF> --output-prefix <OUTPUT>
 
@@ -136,7 +136,7 @@ The clustered breakpoint call file is [BEDPE](https://bedtools.readthedocs.io/en
 
 Notes:
   - The cluster score is set to a constant "MEDIUM"
-  - You can `grep` the output for specific gene names or gene IDs if you're fishing for a specific fusion
+  - You can `grep` the output for specific gene names or gene IDs if you're fishing for a specific fusion gene pair
 
 
 ### Filtering options
@@ -144,8 +144,8 @@ Notes:
 The primary filtering options to reduce false positives are `--min-coverage` (`-m`) and `--fusion-readthrough-threshold` (`-T`).
 `--min-coverage` just filters out breakpoints based on their read support, where the default value is 2 to filter out singletons.
 `--fusion-readthrough-threshold` is used to discard reads that align to two genes next to each other in the genome.
-By default, this is set to a modest 10kb, but for more stringent fusion calling, we recommend setting this option to 100kb.
-Another option to use for more stringent fusion calling is `--filter-groups-failing-any`.
+By default, this is set to a modest 10kb, but for more stringent fusion gene calling, we recommend setting this option to 100kb.
+Another option to use for more stringent fusion gene calling is `--filter-groups-failing-any`.
 This means that breakpoint pairs that fail any of our internal checks (readthrough, strand switch, unannotated exons, or overlapping genes), that pair will not get emitted.
 
 
@@ -193,7 +193,7 @@ The read names for the y-axis labels are done manually, so they will need to be 
 
 
 ### Extract tag
-The main use case for this script is to output associated cell barcodes for fusion reads.
+The main use case for this script is to output associated cell barcodes for fusion gene reads.
 `extract_tag.py` will take a BAM file, BAM tag, and a list of read names (can be taken from the output BEDPE and edited for one readname per line).
 The output is tab delimited with the read name and its associated cell barcode.
 This can be used to extract any BAM tag, but it will look for the `CB` tag by default.
