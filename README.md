@@ -4,7 +4,7 @@
 
 A fusion gene detection tool for all PacBio HiFi Iso-Seq data types.
 
-authors: Roger Volden, Zev Kronenberg, Daniel Baker, Khi Pin Chua
+authors: Roger Volden, [Zev Kronenberg](https://github.com/zeeev), Daniel Baker, Khi Pin Chua
 
 
 ## Table of Contents ##
