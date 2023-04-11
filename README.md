@@ -2,7 +2,7 @@
 
 # pbfusion
 
-Fusion gene detection tool for PacBio Iso-Seq data generated using HiFi sequencing. Can be used on bulk and single-cell Iso-Seq data.
+A fusion gene detection tool for all PacBio HiFi Iso-Seq data types.
 
 authors: Roger Volden, Zev Kronenberg, Daniel Baker, Khi Pin Chua
 
@@ -21,7 +21,7 @@ authors: Roger Volden, Zev Kronenberg, Daniel Baker, Khi Pin Chua
 ```
 conda install -c bioconda pbfusion
 ```
-
+Binaries are also availible in the github releases.
 
 ## Usage <a name="usage"></a>
 
@@ -206,3 +206,6 @@ python3 extract_tag.py \
 ```
 
 This script will be deprecated once cell barcodes are emitted automatically.
+
+##Changelog 
+* v0.1.0 - initial release.
