@@ -172,7 +172,7 @@ There are two scripts included in this repo for convenience: `visualize_fusion.p
 
 
 ### Visualize fusion
-`visualize_fusion.py` will produce a genome browser shot when given an annotation, a single-line BEDPE file, and a mapped BAM.
+`visualize_fusion.py` will produce a genome browser plot when given an annotation, a single-line BEDPE file, and a mapped BAM.
 Optionally, you can specify a path to a pickle file for easier rerunning when refining a figure.
 
 Usage:
