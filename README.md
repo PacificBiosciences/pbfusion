@@ -28,6 +28,7 @@ Binaries are also availible in the github releases.
 `pbfusion` has two primary executables: `pbfusion` and `gffcache`.
 
 `gffcache` is not required, but recommended when running `pbfusion` multiple times. `gffcache` will serialize the input GTF/GFF file and preprocess into exonic intervals ahead of time, which is fairly slow to do on the fly.
+You can find GENCODE annotation files [here](https://www.gencodegenes.org/human/release_38.html).
 
 ```
 Usage: gffcache [OPTIONS] --gtf <ReferenceAnnotation>
