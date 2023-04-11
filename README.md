@@ -25,12 +25,12 @@ conda install -c bioconda pbfusion
 
 ## Usage <a name="usage"></a>
 
-`pbfusion` has two primary executables: `pbfusion` and `pbgffcache`.
+`pbfusion` has two primary executables: `pbfusion` and `gffcache`.
 
-`pbgffcache` is not required, but recommended when running `pbfusion` multiple times. `pbgffcache` will serialize the input GTF/GFF file and preprocess into exonic intervals ahead of time, which is fairly slow to do on the fly.
+`gffcache` is not required, but recommended when running `pbfusion` multiple times. `gffcache` will serialize the input GTF/GFF file and preprocess into exonic intervals ahead of time, which is fairly slow to do on the fly.
 
 ```
-Usage: pbgffcache [OPTIONS] --gtf <ReferenceAnnotation>
+Usage: gffcache [OPTIONS] --gtf <ReferenceAnnotation>
 
 Options:
   -g, --gtf <ReferenceAnnotation>            Input GTF file
@@ -151,7 +151,7 @@ This means that breakpoint pairs that fail any of our internal checks (readthrou
 
 Serializing the input gtf file:
 ```
-pbgffcache \
+gffcache \
     --gtf gencode.v38.annotation.gtf \
     --gtf-out gencode.v38.annotation.gtf.bin
 ```
