@@ -188,8 +188,6 @@ Visualization dependencies:
  - matplotlib
  - pysam
 
-The read names for the y-axis labels are done manually, so they will need to be changed in the source code when run.
-
 
 ### Extract tag
 The main use case for this script is to output associated cell barcodes for fusion gene reads.
