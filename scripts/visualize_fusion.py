@@ -56,7 +56,7 @@ def read_bedpe(bedpe):
     '''
     with open(bedpe) as f:
         for line in f:
-            if line.startswith('#'):
+            if line.startswith('#') or not line.rstrip():
                 continue
             sl = line.rstrip().split('\t')
             breakpoints = ((sl[0], sl[1]), (sl[3], sl[4]))
@@ -65,12 +65,16 @@ def read_bedpe(bedpe):
             for field in aux:
                 if field.startswith('GENE_IDS='):
                     gene_ids = field[9:].split(',')
+                if field.startswith('GENE_NAMES='):
+                    gene_names = field[11:].split(',')
+    gene_ids = list(zip(gene_ids, gene_names))
     return reads, gene_ids, breakpoints
 
 
 def read_gtf(gtf, gene_ids):
-    gtf_dict = {}
-    transcript_list = []
+    gids = set([x[0] for x in gene_ids])
+    id_to_name = {x[0]: x[1] for x in gene_ids}
+    gtf_dict, transcript_list, tid_to_gname = {}, [], {}
     with open(gtf) as f:
         for line in f:
             if line.startswith('#'):
@@ -83,8 +87,9 @@ def read_gtf(gtf, gene_ids):
                 end = int(a[4])
                 transcript = a[8].split(' transcript_id "')[1].split('"')[0]
                 gene = a[8].split('gene_id "')[1].split('"')[0]
-                if gene not in gene_ids:
+                if gene not in gids:
                     continue
+                tid_to_gname[transcript] = id_to_name[gene]
                 if transcript not in gtf_dict:
                     gtf_dict[transcript] = []
                 gtf_dict[transcript].append([chromosome, start, end, type1])
@@ -100,7 +105,8 @@ def read_gtf(gtf, gene_ids):
             types.append(part[3])
         transcript_list.append([
             chromosome, min(starts), max(ends),
-            blockstarts, blockwidths, False, types])
+            blockstarts, blockwidths, False, types, tid_to_gname[transcript]]
+        )
     return transcript_list
 
 
@@ -155,6 +161,7 @@ def plot_fusion(ref_genes, alignments, breakpoints, output):
             g2_y += 1
             ypos = g2_y
             color = blue
+        panel.set_ylabel(transcript[7], fontsize=5)
         start, stop = transcript[1], transcript[2]
         panel.plot([start, stop], [ypos]*2, lw=0.2, c=color, zorder=10)
         for i in range(len(transcript[3])):
@@ -177,23 +184,23 @@ def plot_fusion(ref_genes, alignments, breakpoints, output):
             elif locus[0] == breakpoints[1][0]:
                 panel = reads2
                 color = blue
-                start, stop = locus[1][0][0], locus[1][-1][0] + locus[1][-1][1]
+                start, stop = int(breakpoints[1][1]), locus[1][-1][0] + locus[1][-1][1]
             for block in locus[1]:
                 left, width = block
                 exon = Rect((left, y-0.25), width, 0.5, lw=0, fc=color, zorder=12)
                 panel.add_patch(exon)
             panel.plot([start, stop], [y]*2, lw=0.2, c=color, zorder=10)
 
-    gene1.set_ylabel('ASPSCR1', fontsize=5)
-    gene2.set_ylabel('TFE3', fontsize=5)
-    reads1.set_ylabel('Reads')
-
-    gene1.set_xlim(gene1_start, int(breakpoints[0][1])+gene2_span)
-    gene2.set_xlim(int(breakpoints[1][1])-gene1_span, gene2_end)
+    padding = 500
+    gene1.set_xlim(gene1_start-padding, int(breakpoints[0][1])+gene2_span)
+    gene2.set_xlim(int(breakpoints[1][1])-gene1_span, gene2_end+padding)
+    gene1.set_ylim(0, g1_y+1)
+    gene2.set_ylim(0, g2_y+1)
     reads1.set_ylim(0, len(alignments)+1)
     reads2.set_ylim(0, len(alignments)+1)
-    reads1.set_xlim(gene1_start, int(breakpoints[0][1]))
-    reads2.set_xlim(int(breakpoints[1][1]), gene2_end)
+    reads1.set_xlim(gene1_start-padding, int(breakpoints[0][1]))
+    reads2.set_xlim(int(breakpoints[1][1]), gene2_end+padding)
+    reads1.set_ylabel('Reads')
 
     reads1.spines['right'].set_visible(False)
     reads2.spines['left'].set_visible(False)
