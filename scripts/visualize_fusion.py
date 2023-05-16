@@ -129,10 +129,14 @@ def read_bam(bam, reads):
 
 
 def plot_fusion(ref_genes, alignments, breakpoints, output):
-    alignments = {k: v for (k, v) in alignments.items() if len(v) == 2}
-
+    alignments = {k: sorted(v) for (k, v) in alignments.items() if len(v) == 2}
+    if breakpoints[0][0] == breakpoints[1][0]:
+        same_chr = True
+    else:
+        same_chr = False
+    
     gene1_start = min([x[0][1][0][0] for x in list(alignments.values()) if x[0][0] == breakpoints[0][0]])
-    gene2_end = max([x[2] for x in ref_genes if x[0] == breakpoints[1][0]])
+    gene2_end = max([x[1][-1][-1][0] + x[1][-1][-1][1] for x in list(alignments.values()) if x[0][0] == breakpoints[0][0]])
     gene1_span = abs(int(breakpoints[0][1]) - gene1_start)
     gene2_span = abs(int(breakpoints[1][1]) - gene2_end)
     total_span = gene1_span + gene2_span
@@ -151,7 +155,20 @@ def plot_fusion(ref_genes, alignments, breakpoints, output):
     # plot the gene annotations
     g1_y, g2_y = 0, 0
     for transcript in ref_genes:
-        if transcript[0] == breakpoints[0][0]:
+        if same_chr:
+            bp1_dist = abs(int(breakpoints[0][1]) - transcript[1])
+            bp2_dist = abs(int(breakpoints[1][1]) - transcript[1])
+            if bp1_dist < bp2_dist:
+                panel = gene1
+                g1_y += 1
+                ypos = g1_y
+                color = orange
+            else:
+                panel = gene2
+                g2_y += 1
+                ypos = g2_y
+                color = blue
+        elif transcript[0] == breakpoints[0][0]:
             panel = gene1
             g1_y += 1
             ypos = g1_y
@@ -161,7 +178,7 @@ def plot_fusion(ref_genes, alignments, breakpoints, output):
             g2_y += 1
             ypos = g2_y
             color = blue
-        panel.set_ylabel(transcript[7], fontsize=5)
+        panel.set_ylabel(transcript[7], fontsize=4)
         start, stop = transcript[1], transcript[2]
         panel.plot([start, stop], [ypos]*2, lw=0.2, c=color, zorder=10)
         for i in range(len(transcript[3])):
@@ -177,7 +194,18 @@ def plot_fusion(ref_genes, alignments, breakpoints, output):
     for read in list(alignments.values()):
         y += 1
         for locus in read:
-            if locus[0] == breakpoints[0][0]:
+            if same_chr:
+                bp1_dist = abs(int(breakpoints[0][1]) - locus[1][0][0])
+                bp2_dist = abs(int(breakpoints[1][1]) - locus[1][0][0])
+                if bp1_dist < bp2_dist:
+                    panel = reads1
+                    color = orange
+                    start, stop = locus[1][0][0], int(breakpoints[0][1])
+                else:
+                    panel = reads2
+                    color = blue
+                    start, stop = int(breakpoints[1][1]), locus[1][-1][0] + locus[1][-1][1]
+            elif locus[0] == breakpoints[0][0]:
                 panel = reads1
                 color = orange
                 start, stop = locus[1][0][0], int(breakpoints[0][1])
