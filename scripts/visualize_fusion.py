@@ -56,25 +56,21 @@ def read_bedpe(bedpe):
     '''
     with open(bedpe) as f:
         for line in f:
-            if line.startswith('#') or not line.rstrip():
+            if line.startswith('#'):
                 continue
             sl = line.rstrip().split('\t')
             breakpoints = ((sl[0], sl[1]), (sl[3], sl[4]))
             reads = set(sl[11][6:].split(','))
             aux = sl[10].split(';')
             for field in aux:
-                if field.startswith('GENE_IDS='):
+                if field.startswith('GI='):
                     gene_ids = field[9:].split(',')
-                if field.startswith('GENE_NAMES='):
-                    gene_names = field[11:].split(',')
-    gene_ids = list(zip(gene_ids, gene_names))
     return reads, gene_ids, breakpoints
 
 
 def read_gtf(gtf, gene_ids):
-    gids = set([x[0] for x in gene_ids])
-    id_to_name = {x[0]: x[1] for x in gene_ids}
-    gtf_dict, transcript_list, tid_to_gname = {}, [], {}
+    gtf_dict = {}
+    transcript_list = []
     with open(gtf) as f:
         for line in f:
             if line.startswith('#'):
@@ -87,9 +83,8 @@ def read_gtf(gtf, gene_ids):
                 end = int(a[4])
                 transcript = a[8].split(' transcript_id "')[1].split('"')[0]
                 gene = a[8].split('gene_id "')[1].split('"')[0]
-                if gene not in gids:
+                if gene not in gene_ids:
                     continue
-                tid_to_gname[transcript] = id_to_name[gene]
                 if transcript not in gtf_dict:
                     gtf_dict[transcript] = []
                 gtf_dict[transcript].append([chromosome, start, end, type1])
@@ -105,8 +100,7 @@ def read_gtf(gtf, gene_ids):
             types.append(part[3])
         transcript_list.append([
             chromosome, min(starts), max(ends),
-            blockstarts, blockwidths, False, types, tid_to_gname[transcript]]
-        )
+            blockstarts, blockwidths, False, types])
     return transcript_list
 
 
@@ -129,14 +123,10 @@ def read_bam(bam, reads):
 
 
 def plot_fusion(ref_genes, alignments, breakpoints, output):
-    alignments = {k: sorted(v) for (k, v) in alignments.items() if len(v) == 2}
-    if breakpoints[0][0] == breakpoints[1][0]:
-        same_chr = True
-    else:
-        same_chr = False
-    
+    alignments = {k: v for (k, v) in alignments.items() if len(v) == 2}
+
     gene1_start = min([x[0][1][0][0] for x in list(alignments.values()) if x[0][0] == breakpoints[0][0]])
-    gene2_end = max([x[1][-1][-1][0] + x[1][-1][-1][1] for x in list(alignments.values()) if x[0][0] == breakpoints[0][0]])
+    gene2_end = max([x[2] for x in ref_genes if x[0] == breakpoints[1][0]])
     gene1_span = abs(int(breakpoints[0][1]) - gene1_start)
     gene2_span = abs(int(breakpoints[1][1]) - gene2_end)
     total_span = gene1_span + gene2_span
@@ -155,20 +145,7 @@ def plot_fusion(ref_genes, alignments, breakpoints, output):
     # plot the gene annotations
     g1_y, g2_y = 0, 0
     for transcript in ref_genes:
-        if same_chr:
-            bp1_dist = abs(int(breakpoints[0][1]) - transcript[1])
-            bp2_dist = abs(int(breakpoints[1][1]) - transcript[1])
-            if bp1_dist < bp2_dist:
-                panel = gene1
-                g1_y += 1
-                ypos = g1_y
-                color = orange
-            else:
-                panel = gene2
-                g2_y += 1
-                ypos = g2_y
-                color = blue
-        elif transcript[0] == breakpoints[0][0]:
+        if transcript[0] == breakpoints[0][0]:
             panel = gene1
             g1_y += 1
             ypos = g1_y
@@ -178,7 +155,6 @@ def plot_fusion(ref_genes, alignments, breakpoints, output):
             g2_y += 1
             ypos = g2_y
             color = blue
-        panel.set_ylabel(transcript[7], fontsize=4)
         start, stop = transcript[1], transcript[2]
         panel.plot([start, stop], [ypos]*2, lw=0.2, c=color, zorder=10)
         for i in range(len(transcript[3])):
@@ -194,41 +170,30 @@ def plot_fusion(ref_genes, alignments, breakpoints, output):
     for read in list(alignments.values()):
         y += 1
         for locus in read:
-            if same_chr:
-                bp1_dist = abs(int(breakpoints[0][1]) - locus[1][0][0])
-                bp2_dist = abs(int(breakpoints[1][1]) - locus[1][0][0])
-                if bp1_dist < bp2_dist:
-                    panel = reads1
-                    color = orange
-                    start, stop = locus[1][0][0], int(breakpoints[0][1])
-                else:
-                    panel = reads2
-                    color = blue
-                    start, stop = int(breakpoints[1][1]), locus[1][-1][0] + locus[1][-1][1]
-            elif locus[0] == breakpoints[0][0]:
+            if locus[0] == breakpoints[0][0]:
                 panel = reads1
                 color = orange
                 start, stop = locus[1][0][0], int(breakpoints[0][1])
             elif locus[0] == breakpoints[1][0]:
                 panel = reads2
                 color = blue
-                start, stop = int(breakpoints[1][1]), locus[1][-1][0] + locus[1][-1][1]
+                start, stop = locus[1][0][0], locus[1][-1][0] + locus[1][-1][1]
             for block in locus[1]:
                 left, width = block
                 exon = Rect((left, y-0.25), width, 0.5, lw=0, fc=color, zorder=12)
                 panel.add_patch(exon)
             panel.plot([start, stop], [y]*2, lw=0.2, c=color, zorder=10)
 
-    padding = 500
-    gene1.set_xlim(gene1_start-padding, int(breakpoints[0][1])+gene2_span)
-    gene2.set_xlim(int(breakpoints[1][1])-gene1_span, gene2_end+padding)
-    gene1.set_ylim(0, g1_y+1)
-    gene2.set_ylim(0, g2_y+1)
+    gene1.set_ylabel('ASPSCR1', fontsize=5)
+    gene2.set_ylabel('TFE3', fontsize=5)
+    reads1.set_ylabel('Reads')
+
+    gene1.set_xlim(gene1_start, int(breakpoints[0][1])+gene2_span)
+    gene2.set_xlim(int(breakpoints[1][1])-gene1_span, gene2_end)
     reads1.set_ylim(0, len(alignments)+1)
     reads2.set_ylim(0, len(alignments)+1)
-    reads1.set_xlim(gene1_start-padding, int(breakpoints[0][1]))
-    reads2.set_xlim(int(breakpoints[1][1]), gene2_end+padding)
-    reads1.set_ylabel('Reads')
+    reads1.set_xlim(gene1_start, int(breakpoints[0][1]))
+    reads2.set_xlim(int(breakpoints[1][1]), gene2_end)
 
     reads1.spines['right'].set_visible(False)
     reads2.spines['left'].set_visible(False)
