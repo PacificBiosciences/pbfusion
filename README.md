@@ -220,9 +220,13 @@ These genes are recombined at the genomic level (VDJ or VJ recombination), so as
 ### Changelog
 Changelog - PacBio Fusion Detection - pbfusion
 
+## v0.3.1 8/17/23
+### Changes
+- Bug fix: resolving query position sorting.
+
 ## v0.3.0 7/25/23
 ### Changes
-- Bug fix: resolving strandness breakpoint errors.
+- Bug fix: resolving strand-related breakpoint errors.
 - Bug fix: GTF parsing of overlapping annotations.
 - Bug fix: annoting gtf records without parent gene entries.
 
