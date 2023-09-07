@@ -1,16 +1,3 @@
-
-<head>
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-XV135MNC79"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-XV135MNC79');
-</script>
-</head>
-
-
 <h1 align="left"><img width="300px" src="logo.png"/></h1>
 
 # pbfusion
