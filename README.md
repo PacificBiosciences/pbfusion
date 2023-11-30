@@ -1,8 +1,8 @@
-<h1 align="left"><img width="300px" src="logo.png"/></h1>
+<h1 align="center"><img width="300px" src="pbfusion_logo.svg"/></h1>
 
-# pbfusion
+<h1 align="center">pbfusion</h1>
 
-A fusion gene detection tool for all PacBio HiFi Iso-Seq data types.
+Fusion gene caller for Iso-Seq sequencing data.
 
 Authors: [Roger Volden](https://github.com/velociroger-pb), [Zev Kronenberg](https://github.com/zeeev), [Daniel Baker](https://github.com/dnbaker), [Khi Pin Chua](https://github.com/proteinosome)
 
@@ -15,7 +15,6 @@ Please refer to our [official pbbioconda page](https://github.com/PacificBioscie
 3. [Output](#output)
 4. [Examples](#examples)
 5. [Accessory scripts](#accessory)
-6. [What's up with all the immune genes?](#immune)
 
 
 ## Install <a name="install"></a>
@@ -53,37 +52,45 @@ Options:
 ```
 Identify fusion genes in aligned PacBio Iso-Seq data
 
-Usage: pbfusion discover [OPTIONS] --bam <FILE> --gtf <REF> --output-prefix <OUTPUT>
+Usage: pbfusion discover [OPTIONS] --gtf <REF> --output-prefix <OUTPUT> [FILE]...
+
+Arguments:
+  [FILE]...
 
 Options:
-  -b, --bam <FILE>
-          Aligned Iso-Seq data in BAM format
+  -b <ADDITIONAL_BAMS>
+          Aligned Iso-Seq data in BAM format. Accepts a path to a bam, a url (if compiled with curl support), or a fofn (file-of-filenames) file with one filename or url per line
   -g, --gtf <REF>
-          Reference gene annotations in GTF format
+          Reference gene annotations in GTF format. We also accept `gtf.bin` files as built by `pbfusion gff-cache`. This file must have `bin` as its suffix to be recognized. We also support gtf.bin.xz and gtf.bin.gz, compressed by xz and gzip, respectively. Recognition is based entirely on filename. Warning: the binary cached format has been altered since 0.3.3. You may need to re-generate your binary annotations.
   -o, --output-prefix <OUTPUT>
           Output prefix [default: none]
+  -Q, --min-fusion-quality <MIN_FUSION_QUALITY>
+          Determine the minimum fusion quality to emit. Choices: must be LOW or MEDIUM [default: MEDIUM]
   -t, --threads <THREADS>
-          Number of threads [default: 1]
+          Number of threads. Defaults to available parallelism [default: 0]
   -c, --min-coverage <MIN_COVERAGE>
-          Assigns "low confidence" to fusion calls with read coverage below the minimum coverage threshold [default: 2]
+          Real-cell filtering for single-cell data. Iso-Seq reads annotated with zero "rc" tag value will be filtered. Assigns "low confidence" to fusion calls with read coverage below the minimum coverage threshold [default: 2]
   -i, --min-mean-identity <MIN_MEAN_IDENTITY>
-          Assigns "low confidence" to fusion calls where the mean alignment identity iew below the threshold [default: 0.85]
+          Assigns "low confidence" to fusion calls where the mean alignment identity is below the threshold [default: 0.85]
   -p, --min-mean-mapq <MIN_MEAN_MAPQ>
           Assigns "low confidence" to fusion calls where the mean mapq is below the threshold [default: 0.]
   -M, --min-fusion-read-fraction <MIN_FUSION_READ_FRACTION>
-          Remove breakpoint pairs from groups if they have gene alignments which fewer than <arg> reads in group have [default: 0.25]
+          Remove breakpoint pairs from groups if they have gene alignments which fewer than \[arg\] reads in group have [default: 0.25]
   -s, --max-variability <MAX_VARIABILITY>
           Assigns "low confidence" to fusion calls with the mean breakpoint distance is above the threshold [default: 1000]
   -a, --max-readthrough <MAX_READTHROUGH>
-          Assigns "low confidence" to fusion calls spanning two genes below the readthrough threshold [default: 100000]
+          Assigns "low confidence" to fusion calls spanning two genes below the readthrough threshold. [default: 100000]
+  -m, --max-genes-in-event <MAX_GENES_IN_EVENT>
+          Mark fusion groups involving > \[arg\] genes as low quality. This is a common source of false positives [default: 3]
   -r, --real-cell-filtering
-          Real-cell filtering for single-cell data. Iso-Seq reads annotated with zero "rc" tag value will be filtered
-  -l, --min-segment-length <MIN_SEGLEN>
-          Minimum alignment length, alignments below the threshold will be filtered before clustering [default: 25]
-  -Q, --min-fusion-quality <MIN_FUSION_QUALITY>
-          Determine the minimum fusion quality to emit. Choices: must be either LOW or MEDIUM [default: MEDIUM]
+      --allow-immune
+          Permit fusion events identified involving primarily immunological genes and their pseudogenes. These are a common source of false positives and we mark them low-quality by default.
+      --allow-mito
+          Permit fusion events identified involving mitochondrial genes. These are a common source of false positives and we mark them low-quality by default.
+      --prom-filter <PROM_FILTER>
+          Filter rarer events involving genes with high numbers of fusion partners. These are a common source of false positives. Disable by setting `--prom-filter 0`. [default: 8]
   -v, --verbose...
-          Enable verbose output. Enable verbose output
+          Enable verbose output
       --log-level <LOG_LEVEL>
           Alternative to repeated -v/--verbose: set log level via key.
           Values: "error", "warn" (default), "info", "debug", "trace".
@@ -95,19 +102,14 @@ Options:
             -vv => "DEBUG"
            -vvv => "TRACE" [default: error]
   -h, --help
-          Print help (see more with '--help')
+          Print help information (use `-h` for a summary)
   -V, --version
-          Print version
+          Print version information
 
 Copyright (C) 2004-2023     Pacific Biosciences of California, Inc.
 This program comes with ABSOLUTELY NO WARRANTY; it is intended for
 Research Use Only and not for use in diagnostic procedures.
 ```
-
-By default, readthrough and sense-antisense chimeras, and overlapping gene events, and events involving unannotated exons are marked as low-quality.
-
-They can be unfiltered by enabling `--emit-all-breakpoints.`
-
 
 ## Output <a name="output"></a>
 
@@ -135,6 +137,9 @@ Notes:
       - Low coverage
       - Low alignment identity
       - High breakpoint variability
+      - Majority immunoglobulin genes
+      - Mitochondrial genes
+      - Having many gene partners across the dataset
   - You can `grep` the output for specific gene names or gene IDs if you're fishing for a specific fusion gene pair
 
 
@@ -153,6 +158,16 @@ With that filter, you're left with this coverage: [100, 100, 90, 90], which with
 Because this fusion still has >3 genes in it, it would get filtered out.
 `--max-variability` allows you to filter based on breakpoint variability [default 1000].
 
+As of v0.4.0, the default behavior is to mark entries with simple majority of immune genes as `LOW`.
+We use the GENCODE `gene_type` field to classify annotations as immune.
+This filter can be disabled by setting the `--allow-immune` option.
+Additionally, we mark entries with mitochondrial genes as `LOW`, which can be disabled with the `--allow-mito` option.
+Lastly, we have implemented a promiscuity filter to help decrease false positives.
+This filter works by taking all of the `MEDIUM` fusion entries and tracking how many different gene partners each gene has.
+If `Gene_A` has entries with genes `B`, `C`, ..., `K`, then `Gene_A` will be subject to the promiscuity filter [default is 8 gene partners].
+For genes with many partners, we calculate the expected coverage for these entries as `sum(read_coverage) // n_partners`.
+Entries that do not pass this expected coverage will get marked as `LOW`.
+
 
 ## Examples <a name="examples"></a>
 
@@ -166,10 +181,20 @@ pbfusion gff-cache \
 Running `pbfusion` on aligned reads:
 ```
 pbfusion discover \
-    --bam isoseq.aligned.bam \
     --reference-gtf gencode.v38.annotation.gtf.bin \
     --output-prefix isoseq \
-    --threads 8
+    --threads 8 \
+    isoseq.aligned.bam
+```
+
+You may find substantial space savings by compressing your annotation bin file.
+pbfusion will accept the smaller file. Being substantially smaller (5M vs 140M), this makes artefact management much easier.
+
+```
+> xz -c -9 --extreme gencode.v38.annotation.gtf.bin > gencode.v38.annotation.gtf.bin.xz
+> ls -oh gencode.v38.annotation.gtf.bin* | awk '{print $4, $NF}'
+140M gencode.v38.annotation.gtf.bin
+5.6M gencode.v38.annotation.gtf.bin.xz
 ```
 
 
@@ -212,13 +237,27 @@ python3 extract_tag.py \
 ```
 
 
-## What's up with all the immune genes? <a name="immune"></a>
-If you see a lot of immune genes in your output (eg. IGH, IGL, IGK, TRA, TRB), this is completely normal.
-These genes are recombined at the genomic level (VDJ or VJ recombination), so aside from filtering the gene names, these will be detected as fusions.
-
-
 ### Changelog
 Changelog - PacBio Fusion Detection - pbfusion
+
+## v0.4.0 11/28/23
+### Changes
+- Improvement: Improved ambiguous gene resolution.
+- Improvement: read lzma-compressed annotations in text and binary format.
+- Improvement: Support multiple bam/fofn (File-Of-FileNames) inputs.
+- Improvement: reduced false-positive fusions.
+- Improvement: Additional metadata for putative fusion candidates.
+- Improvement: Updated cached binary format. WARNING: this is a breaking change. Old binary annotation files will need to be re-generated.
+- Alteration: reduced chaining distance for clustering breakpoints.
+- Alteration: emit sense-antisense events by default.
+
+## v0.3.2 8/17/23
+### Changes
+- Improvement: Maintain read ordering in reporting fusions.
+- Bug fix: Update reported breakpoints so that the interval described is the last-in-read and the second is first-soft-clipped.
+- Improvement: Add gene names to annotation in order they occur in reads.
+- Improvement: Report all breakpoint coordinates for reads in a breakpoint cluster, add as a new tag.
+- Improvement: Update read-through annotation such that we define it based on the breakpoint distance instead of the distance between genes.
 
 ## v0.3.1 8/17/23
 ### Changes
