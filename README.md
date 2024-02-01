@@ -249,16 +249,13 @@ Changelog - PacBio Fusion Detection - pbfusion
 - Improvement: reduced false-positive fusions.
 - Improvement: Additional metadata for putative fusion candidates.
 - Improvement: Updated cached binary format. WARNING: this is a breaking change. Old binary annotation files will need to be re-generated.
-- Alteration: reduced chaining distance for clustering breakpoints.
-- Alteration: emit sense-antisense events by default.
-
-## v0.3.2 8/17/23
-### Changes
 - Improvement: Maintain read ordering in reporting fusions.
 - Bug fix: Update reported breakpoints so that the interval described is the last-in-read and the second is first-soft-clipped.
 - Improvement: Add gene names to annotation in order they occur in reads.
 - Improvement: Report all breakpoint coordinates for reads in a breakpoint cluster, add as a new tag.
 - Improvement: Update read-through annotation such that we define it based on the breakpoint distance instead of the distance between genes.
+- Alteration: reduced chaining distance for clustering breakpoints.
+- Alteration: emit sense-antisense events by default.
 
 ## v0.3.1 8/17/23
 ### Changes
