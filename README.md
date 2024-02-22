@@ -15,6 +15,7 @@ Please refer to our [official pbbioconda page](https://github.com/PacificBioscie
 3. [Output](#output)
 4. [Examples](#examples)
 5. [Accessory scripts](#accessory)
+6. [Help](#help)
 
 
 ## Install <a name="install"></a>
@@ -302,6 +303,10 @@ Changelog - PacBio Fusion Detection - pbfusion
 ## v0.1.0
 ### Changes
 - Initial release
+
+## Help <a name="help"></a>
+
+Please direct support/help/bug questions to [Github issue](https://github.com/PacificBiosciences/pbbioconda/issues)
 
 ## Disclaimer
 
