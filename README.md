@@ -242,6 +242,14 @@ python3 extract_tag.py \
 ### Changelog
 Changelog - PacBio Fusion Detection - pbfusion
 
+## v0.4.1 3/22/24
+### Changes
+- Bug fix: consistent ordering between gene ids and gene names when dealing with ambiguity.
+- Bug fix: rely on breakpoint ordering in visualization script.
+- Improvement: gene names are assigned automatically in visualization script.
+- Improvement: visualization script can now take SAM files as input.
+- Improvement: visualization script can now take a breakpoint number (these aren't always unique, so it's best to still give a single entry).
+
 ## v0.4.0 11/28/23
 ### Changes
 - Improvement: Improved ambiguous gene resolution.

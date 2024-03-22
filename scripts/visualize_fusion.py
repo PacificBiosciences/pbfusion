@@ -34,7 +34,8 @@ def parse_args():
     )
     parser.add_argument(
         '--fusion', '-f', type=str,
-        help='A single line from the breakpoints groups file with the query fusion'
+        help=('A single line from the breakpoints '
+              'groups file with the query fusion')
     )
     parser.add_argument(
         '--bam', '-b', type=str,
@@ -44,10 +45,14 @@ def parse_args():
         '--pickle', '-p', type=str, default='pbfusion_vis.pickle',
         help='Pickle filename [pbfusion_vis.pickle]'
     )
+    parser.add_argument(
+        '--breakpoint', '-bp', type=str, default='',
+        help='Specify a breakpoint like BP600 to select from bed'
+    )
     return parser.parse_args()
 
 
-def read_bedpe(bedpe):
+def read_bedpe(bedpe, bp):
     '''
     Takes the bedpe file and gives back:
         reads
@@ -59,12 +64,19 @@ def read_bedpe(bedpe):
             if line.startswith('#'):
                 continue
             sl = line.rstrip().split('\t')
-            breakpoints = ((sl[0], sl[1]), (sl[3], sl[4]))
-            reads = set(sl[11][6:].split(','))
+            if bp and bp != sl[6]:
+                continue
+            # chr, pos, gene
+            breakpoints = [[sl[0], sl[1]], [sl[3], sl[4]]]
+            reads = set(sl[11].split(';')[0].split('=')[1].split(','))
             aux = sl[10].split(';')
             for field in aux:
                 if field.startswith('GI='):
-                    gene_ids = field[9:].split(',')
+                    gene_ids = field.split('=')[1].split(',')
+                if field.startswith('GN='):
+                    gene_names = field.split('=')[1].split(',')
+            breakpoints[0].extend([gene_names[0], gene_ids[0]])
+            breakpoints[1].extend([gene_names[1], gene_ids[1]])
     return reads, gene_ids, breakpoints
 
 
@@ -87,7 +99,7 @@ def read_gtf(gtf, gene_ids):
                     continue
                 if transcript not in gtf_dict:
                     gtf_dict[transcript] = []
-                gtf_dict[transcript].append([chromosome, start, end, type1])
+                gtf_dict[transcript].append([chromosome, start, end, type1, gene])
 
     for transcript, parts in gtf_dict.items():
         starts, ends, blockstarts, blockwidths, types = [], [], [], [], []
@@ -100,33 +112,45 @@ def read_gtf(gtf, gene_ids):
             types.append(part[3])
         transcript_list.append([
             chromosome, min(starts), max(ends),
-            blockstarts, blockwidths, False, types])
+            blockstarts, blockwidths, False, types, parts[0][4]])
     return transcript_list
 
 
-def read_bam(bam, reads):
+def read_bam(bam, reads, primary_chrom):
     pysam.set_verbosity(0)
+    read_type = 'rb'
+    if bam.endswith('.sam'):
+        read_type = 'r'
 
     read_dict = {}
-    with pysam.AlignmentFile(bam, 'rb', check_sq=False, require_index=False) as bam_file:
+    with pysam.AlignmentFile(bam, read_type,
+                             check_sq=False, require_index=False) as bam_file:
         for read in bam_file.fetch(until_eof=True):
             if read.query_name in reads:
+                if len(read.get_tag('SA').split(';')) > 2:
+                    continue
                 if read.query_name not in read_dict:
-                    read_dict[read.query_name] = []
+                    read_dict[read.query_name] = [[], []]
+
+                # check if this alignment is the 5p end of the molecule
+                lidx = 0 if read.query_alignment_start < 50 else 1
 
                 # make blockstarts and blockwidths
                 blocks = []
                 for b in read.get_blocks():
                     blocks.append((b[0], b[1]-b[0]))
-                read_dict[read.query_name].append([read.reference_name, blocks])
+                read_dict[read.query_name][lidx].append(read.reference_name)
+                read_dict[read.query_name][lidx].append(blocks)
     return read_dict
 
 
 def plot_fusion(ref_genes, alignments, breakpoints, output):
+    # alignments { molecule: [[chr, [(block start, block width), ...]], [[chr, ...]]] }
     alignments = {k: v for (k, v) in alignments.items() if len(v) == 2}
+    # look at the first blockstart
+    gene1_start = min([x[0][1][0][0] for x in list(alignments.values())])
 
-    gene1_start = min([x[0][1][0][0] for x in list(alignments.values()) if x[0][0] == breakpoints[0][0]])
-    gene2_end = max([x[2] for x in ref_genes if x[0] == breakpoints[1][0]])
+    gene2_end = max([x[1][1][-1][0] + x[1][1][-1][1] for x in list(alignments.values())])
     gene1_span = abs(int(breakpoints[0][1]) - gene1_start)
     gene2_span = abs(int(breakpoints[1][1]) - gene2_end)
     total_span = gene1_span + gene2_span
@@ -145,12 +169,12 @@ def plot_fusion(ref_genes, alignments, breakpoints, output):
     # plot the gene annotations
     g1_y, g2_y = 0, 0
     for transcript in ref_genes:
-        if transcript[0] == breakpoints[0][0]:
+        if transcript[-1] == breakpoints[0][-1]:
             panel = gene1
             g1_y += 1
             ypos = g1_y
             color = orange
-        elif transcript[0] == breakpoints[1][0]:
+        elif transcript[-1] == breakpoints[1][-1]:
             panel = gene2
             g2_y += 1
             ypos = g2_y
@@ -158,36 +182,39 @@ def plot_fusion(ref_genes, alignments, breakpoints, output):
         start, stop = transcript[1], transcript[2]
         panel.plot([start, stop], [ypos]*2, lw=0.2, c=color, zorder=10)
         for i in range(len(transcript[3])):
-            left, width, ftype = transcript[3][i], transcript[4][i], transcript[6][i]
+            left, width, ftype = (transcript[x][i] for x in (3, 4, 6))
             if ftype == 'exon':
                 offset = 0.125
             else:
                 offset = 0.25
-            feature = Rect((left, ypos-offset), width, offset*2, lw=0, fc=color, zorder=12)
+            feature = Rect((left, ypos-offset), width,
+                           offset*2, lw=0, fc=color, zorder=12)
             panel.add_patch(feature)
 
     y = 0
-    for read in list(alignments.values()):
+    for read in sorted(list(alignments.values()), key=lambda x: x[0][1][0][0], reverse=True):
         y += 1
-        for locus in read:
-            if locus[0] == breakpoints[0][0]:
+        for i, locus in enumerate(read):
+            if i == 0:
                 panel = reads1
                 color = orange
                 start, stop = locus[1][0][0], int(breakpoints[0][1])
-            elif locus[0] == breakpoints[1][0]:
+            elif i == 1:
                 panel = reads2
                 color = blue
                 start, stop = locus[1][0][0], locus[1][-1][0] + locus[1][-1][1]
             for block in locus[1]:
                 left, width = block
-                exon = Rect((left, y-0.25), width, 0.5, lw=0, fc=color, zorder=12)
+                exon = Rect((left, y-0.25), width, 0.5,
+                            lw=0, fc=color, zorder=12)
                 panel.add_patch(exon)
             panel.plot([start, stop], [y]*2, lw=0.2, c=color, zorder=10)
 
-    gene1.set_ylabel('ASPSCR1', fontsize=5)
-    gene2.set_ylabel('TFE3', fontsize=5)
+    gene1.set_ylabel(breakpoints[0][2], fontsize=5)
+    gene2.set_ylabel(breakpoints[1][2], fontsize=5)
     reads1.set_ylabel('Reads')
 
+    pad = 50
     gene1.set_xlim(gene1_start, int(breakpoints[0][1])+gene2_span)
     gene2.set_xlim(int(breakpoints[1][1])-gene1_span, gene2_end)
     reads1.set_ylim(0, len(alignments)+1)
@@ -211,20 +238,21 @@ def plot_fusion(ref_genes, alignments, breakpoints, output):
 
 
 def main(args):
-    reads, gene_ids, breakpoints = read_bedpe(args.fusion)
+    reads, gene_ids, breakpoints = read_bedpe(args.fusion, args.breakpoint)
     if os.path.exists(args.pickle):
         with open(args.pickle, 'rb') as f:
             ref_genes = pickle.load(f)
             alignments = pickle.load(f)
     else:
-        reads, gene_ids, breakpoints = read_bedpe(args.fusion)
+        # reads, gene_ids, breakpoints = read_bedpe(args.fusion)
         ref_genes = read_gtf(args.annotation, gene_ids)
-        alignments = read_bam(args.bam, reads)
+        alignments = read_bam(args.bam, reads, breakpoints[0][0])
         with open(args.pickle, 'wb') as f:
             pickle.dump(ref_genes, f)
             pickle.dump(alignments, f)
 
     plot_fusion(ref_genes, alignments, breakpoints, args.output)
+
 
 if __name__ == '__main__':
     args = parse_args()
