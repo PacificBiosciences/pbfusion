@@ -15,7 +15,10 @@ Please refer to our [official pbbioconda page](https://github.com/PacificBioscie
 3. [Output](#output)
 4. [Examples](#examples)
 5. [Accessory scripts](#accessory)
-6. [Help](#help)
+6. [Documentation](#documentation)
+7. [Change log](#changelog)
+8. [Help](#help)
+9. [Disclaimer](#disclaimer)
 
 
 ## Install <a name="install"></a>
@@ -239,7 +242,77 @@ python3 extract_tag.py \
 ```
 
 
-### Changelog
+## Documentation <a name="documentation"></a>
+
+### Fusion classification
+
+
+#### Introduction
+
+Eukaryotic RNA processing complexity introduces a number of modes for transcriptional abnormalities which are not true fusion events.
+These include trans splicing, read-through events, and sense-antisense chimeras.
+Additionally, due to overlapping genes/exons, annotating the precise gene combinations correctly cannot always be solved.
+
+To handle this, we classify fusions by quality (`LOW`, `MEDIUM`, and `HIGH`) as well as by event type.
+
+#### Event Type  <a name="type"></a>
+
+Different mechanisms lead to differing signatures in transcriptional data.
+
+We classify events as belonging to one of several categories.
+
+1. `Readthrough`
+2. `Overlap`
+3. `SenseAntisense`
+4. `PotentialTransSplicing`
+5. `Unannotated`
+6. `Fusion`
+
+`Readthrough` events result from the polymerase beginning transcription in one region and continuing into a successive gene.
+Some are functional, but many are just noise. By default, these events are marked as `LOW` quality and annotated with `CL=Readthrough`.
+We use <100kb apart on the same chromosome, in the same orientation, where the first gene is upstream of the second gene.
+100kb can be tuned by the `--max-readthrough` CLI flag.
+Downgrading to `LOW` quality can be disabled by `--emit-readthrough`.
+
+`Overlap` is assigned when a candidate event is discovered between two genes which overlap on the same chromosome, strand, and region.
+This is a common source of false positives, and we annotate them as `CL=Overlap`.
+Downgrading to `LOW` quality can be disabled by `--emit-overlapping`.
+
+`SenseAntisense` is assigned when a read aligns to both strands in the same region. This may have false positives in palindromic sequences, but is functional in some cases. The kallikreins are well-known examples of this which have relevance in cancer.
+These events are marked `SenseAntisense`, but are not marked low quality as they may have biological meaning.
+These can be downgraded to `LOW` quality with `--disable-sense-antisense`.
+
+`Unannotated` events involve segments aligned to unannotated regions of the genome, possibly novel exons. These are marked low quality by default.
+Downgrading to `LOW` quality can be disabled by `--emit-novel-exons`.
+
+Some genes have large numbers of candidate fusion partners. One possible explanation is trans splicing.
+We mark events with many (`>8`) genes as `PotentialTransSplicing`, and then downgrade to `LOW` quality if the partner gene coverages are not expected.
+
+`Fusion` is a category of exclusion; events which are not classified in any of the others are marked as `Fusion`s.
+
+#### Quality
+
+We classify events as  `LOW`, `MEDIUM`, or `HIGH` quality.
+
+The default assignment is `MEDIUM`. Events as described in types above may downgrade a candidate fusion to `LOW`.
+There is additional filtering as well.
+
+We filter them by default, but `--min-fusion-quality` LOW causes all events to be emitted. This can be important for some fusions.
+
+These tests are:
+
+1. Too many genes (`> 3`) [`--max-genes-in-event`]
+2. Too few reads supporting (`< 2`). [`--min-coverage`]
+3. Minimum identity on either side of the breakpoint is too low (`< 85%`) [`--min-mean-identity`]
+4. Breakpoint median distance is too high - this means the breakpoint isn't well-defined, or there are multiple events with nearby breakpoints being grouped together. (`> 1000`) [`--max-variability`]
+5. Minimum mapq on either side (disabled by default with 0). [`--min-min-mapq`]
+
+These parameters can be changed by CLI interface.
+
+A candidate is marked as MEDIUM if it is not in any of the failing cases.
+
+
+### Changelog <a name="changelog"></a>
 Changelog - PacBio Fusion Detection - pbfusion
 
 ## v0.4.1 3/22/24
@@ -258,6 +331,9 @@ Changelog - PacBio Fusion Detection - pbfusion
 - Improvement: reduced false-positive fusions.
 - Improvement: Additional metadata for putative fusion candidates.
 - Improvement: Updated cached binary format. WARNING: this is a breaking change. Old binary annotation files will need to be re-generated.
+
+## v0.3.2 8/17/23
+### Changes
 - Improvement: Maintain read ordering in reporting fusions.
 - Bug fix: Update reported breakpoints so that the interval described is the last-in-read and the second is first-soft-clipped.
 - Improvement: Add gene names to annotation in order they occur in reads.
@@ -316,8 +392,6 @@ Changelog - PacBio Fusion Detection - pbfusion
 
 Please direct support/help/bug questions to [Github issue](https://github.com/PacificBiosciences/pbbioconda/issues)
 
-## Disclaimer
+## Disclaimer <a name="disclaimer">
 
 THIS WEBSITE AND CONTENT AND ALL SITE-RELATED SERVICES, INCLUDING ANY DATA, ARE PROVIDED "AS IS," WITH ALL FAULTS, WITH NO REPRESENTATIONS OR WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, ANY WARRANTIES OF MERCHANTABILITY, SATISFACTORY QUALITY, NON-INFRINGEMENT OR FITNESS FOR A PARTICULAR PURPOSE. YOU ASSUME TOTAL RESPONSIBILITY AND RISK FOR YOUR USE OF THIS SITE, ALL SITE-RELATED SERVICES, AND ANY THIRD PARTY WEBSITES OR APPLICATIONS. NO ORAL OR WRITTEN INFORMATION OR ADVICE SHALL CREATE A WARRANTY OF ANY KIND. ANY REFERENCES TO SPECIFIC PRODUCTS OR SERVICES ON THE WEBSITES DO NOT CONSTITUTE OR IMPLY A RECOMMENDATION OR ENDORSEMENT BY PACIFIC BIOSCIENCES.
-
-
