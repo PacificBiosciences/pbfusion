@@ -76,9 +76,9 @@ Options:
   -c, --min-coverage <MIN_COVERAGE>
           Real-cell filtering for single-cell data. Iso-Seq reads annotated with zero "rc" tag value will be filtered. Assigns "low confidence" to fusion calls with read coverage below the minimum coverage threshold [default: 2]
   -i, --min-mean-identity <MIN_MEAN_IDENTITY>
-          Assigns "low confidence" to fusion calls where the mean alignment identity is below the threshold [default: 0.85]
+          Assigns "low confidence" to fusion calls where the mean alignment identity is below the threshold [default: 0.93]
   -p, --min-mean-mapq <MIN_MEAN_MAPQ>
-          Assigns "low confidence" to fusion calls where the mean mapq is below the threshold [default: 0.]
+          Assigns "low confidence" to fusion calls where the mean mapq is below the threshold [default: 10]
   -M, --min-fusion-read-fraction <MIN_FUSION_READ_FRACTION>
           Remove breakpoint pairs from groups if they have gene alignments which fewer than \[arg\] reads in group have [default: 0.25]
   -s, --max-variability <MAX_VARIABILITY>
@@ -155,13 +155,15 @@ The primary filtering options to reduce false positives are `--min-coverage` (`-
 `--min-coverage` just filters out breakpoints based on their read support, where the default value is 2 to filter out singletons.
 `--max-readthrough` is used to discard reads that align to two genes next to each other in the genome [default 100kb].
 `--min-mean-identity` will assign low confidence to fusions with mean mapping identity lower than the threshold [0.85]. Sometimes in hard to map regions of the genome, the aligner will force an alignment through a region and incur a high edit distance.
-`--min-mean-mapq` default is set to `0.` because even with high alignment identity, some genes have close relatives where the aligner will assign a MAPQ of 0.
+`--min-mean-mapq` default is set to `10` to reduce mapping errors.
 `--min-fusion-read-fraction` is used to filter long chains of genes.
 An example of this would be an IG alignment, where maybe 100 reads align to various annotated regions (eg. IGHA1, IGHV3-23, IGHV3-7, IGHG3, IGHJ5, IGHJ4, IGHJ3, IGHGP, IGHJ2, IGHJ6).
 Given a read coverage of these genes like [100, 100, 90, 90, 20, 10, 10, 5, 5, 5], we would by default filter genes with coverage lower than 25% of the total read count for this fusion.
 With that filter, you're left with this coverage: [100, 100, 90, 90], which with the read filtering brings it down to [80, 80, 70, 70].
 Because this fusion still has >3 genes in it, it would get filtered out.
 `--max-variability` allows you to filter based on breakpoint variability [default 1000].
+`--min-fusion-fraction` default is set to `0.01` This is XC/TC, and represents the fusion fraction relative to the transcript counts of both donor genes.
+`--gtf-transcript-allow-lncRNA` allows lncRNAs to be considered.
 
 As of v0.4.0, the default behavior is to mark entries with simple majority of immune genes as `LOW`.
 We use the GENCODE `gene_type` field to classify annotations as immune.
@@ -303,7 +305,7 @@ These tests are:
 
 1. Too many genes (`> 3`) [`--max-genes-in-event`]
 2. Too few reads supporting (`< 2`). [`--min-coverage`]
-3. Minimum identity on either side of the breakpoint is too low (`< 85%`) [`--min-mean-identity`]
+3. Minimum identity on either side of the breakpoint is too low (`< 93%`) [`--min-mean-identity`]
 4. Breakpoint median distance is too high - this means the breakpoint isn't well-defined, or there are multiple events with nearby breakpoints being grouped together. (`> 1000`) [`--max-variability`]
 5. Minimum mapq on either side (disabled by default with 0). [`--min-min-mapq`]
 
@@ -314,6 +316,18 @@ A candidate is marked as MEDIUM if it is not in any of the failing cases.
 
 ### Changelog <a name="changelog"></a>
 Changelog - PacBio Fusion Detection - pbfusion
+
+## v0.5.0 11/29/24
+### Changes
+The main focus on this update is to reduce the number of false positive calls by adjusting default parameters, and introducing new filters.
+
+- Feature: Addition of minimum fusion fraction filter (--min-fusion-fraction). Increased specificity at a small cost to sensitivity.
+- Feature: Addition of lncRNA filtering (--gtf-transcript-allow-lncRNA). Increased specificity at a small cost to sensitivity.
+- Feature: Increasing min map quality to 10
+- Feature: Increasing min identity to 93%
+- Feature: Adding transcript count for fusion support (XC), and total count (TC) to output.
+- Bug fix: Fix fofn hang
+- Bug fix: Ensure unique fusion IDs
 
 ## v0.4.1 3/22/24
 ### Changes
