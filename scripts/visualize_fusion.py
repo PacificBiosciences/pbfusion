@@ -20,6 +20,7 @@ from enum import Enum
 import logging
 from pathlib import Path
 import pickle
+import re
 import sys
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
@@ -45,6 +46,9 @@ MIN_REF_TRANSCRIPT_PROP = 0.2
 MAX_REF_TRANSCRIPT_PROP = 0.5
 # width of the line that denote the gene or read
 GENE_LINEWIDTH = 0.1
+
+LEFT_SOFTCLIP_PATTERN = re.compile(r"^(\d+)S")
+RIGHT_SOFTCLIP_PATTERN = re.compile(r".*(\d+)S$")
 
 
 def parse_args() -> argparse.Namespace:
@@ -199,6 +203,7 @@ def read_fusion_bedpe(
         read_names: the list of read names provided in the file
         breakpoint_pair: the two breakpoints that form the fusion
     """
+    logger.info("Reading fusion information from bedpe.")
     breakpoint_pair = None
     with bedpe_path.open("rt") as infile:
         for line in infile:
@@ -259,6 +264,7 @@ def parse_transcripts_from_gtf(gtf_path: Path, gene_ids: List[str]) -> List[Tran
     Returns:
         transcripts: the parsed transcripts
     """
+    logger.info(f"Parsing reference annotation GTF for transcripts corresponding to genes {gene_ids}")
     transcripts_by_id: Dict[str, Transcript] = {}
     with gtf_path.open("rt") as infile:
         for line in infile:
@@ -270,7 +276,7 @@ def parse_transcripts_from_gtf(gtf_path: Path, gene_ids: List[str]) -> List[Tran
                     f"Could not parse line {line.strip()} from GTF file {gtf_path}. Expected 9 fields but got "
                     f"{len(line_fields)} fields."
                 )
-            chrom, source, feature, start, end, score, strand, frame, attributes = line_fields
+            chrom, _, feature, start, end, _, strand, _, attributes = line_fields
 
             if feature in ["exon", "CDS"]:
                 start = int(start)
@@ -325,6 +331,7 @@ def read_fusion_alignments(bam_path: Path, read_names: List[str]) -> List[Fusion
     Returns:
         alignments: fusion alignments
     """
+    logger.info("Finding reads corresponding to fusion from BAM file.")
     pysam.set_verbosity(0)
     open_mode = "r" if bam_path.suffix == "sam" else "rb"
 
@@ -333,17 +340,14 @@ def read_fusion_alignments(bam_path: Path, read_names: List[str]) -> List[Fusion
     with pysam.AlignmentFile(str(bam_path), open_mode, check_sq=False, require_index=False) as bam_file:
         for alignment in bam_file.fetch(until_eof=True):
             if alignment.query_name in read_names:
+
                 # TODO: not sure why we're excluding reads with more that 2 suppl alignments
                 if len(alignment.get_tag("SA").split(";")) > 2:
+                    logger.warning(f"Skipping alignments for {alignment.query_name} which has more than 2 segments")
                     continue
 
                 # check if this alignment is the 5p end of the molecule
-                # TODO: we should get rid of this magic "50 bps from the start of the read"
-                #    recommendation would be to store the blocks for all aligned segment for our read, with the
-                #    start coordinate of the read.
-                is_5p = (not alignment.is_reverse and alignment.query_alignment_start < 50) or (
-                    not alignment.is_reverse and alignment.query_length - alignment.query_alignment_end < 50
-                )
+                is_5p = _is_5p_alignment(alignment)
                 blocks = [Interval(*block) for block in alignment.get_blocks()]
 
                 if alignment.query_name not in alignments_by_name:
@@ -359,6 +363,34 @@ def read_fusion_alignments(bam_path: Path, read_names: List[str]) -> List[Fusion
                     ) from exc
 
     return list(alignments_by_name.values())
+
+
+def _is_5p_alignment(alignment: pysam.AlignedSegment) -> bool:
+    """
+    Check if this alignment is the one closest to the beginning of the read, in the sequencing direction.
+    This is currently achieved that comparing the number of soft clip bases at the 5' end of the read for this
+    aligned segment and the aligned segment reported in the SA tag.
+    WARNING: this currently only supports reads that have exactly 1 supplemental alignment
+    """
+    sa_tag = alignment.get_tag("SA")
+    assert len(sa_tag.rstrip(";").split(";")) == 1, "Internal error: this function does not currently support this."
+
+    # get the number of 5' soft clips for this segment
+    this_5p_clip = (
+        alignment.query_alignment_start
+        if not alignment.is_reverse
+        else alignment.query_length - alignment.query_alignment_end
+    )
+    # and for the one in the SA tag
+    _, _, sa_strand, sa_cigar, _, _ = sa_tag.split(",")
+    sa_5p_clip = None
+    if sa_strand == "+":
+        sa_5p_clip = int(m.group(1)) if (m := LEFT_SOFTCLIP_PATTERN.match(sa_cigar)) is not None else 0
+    elif sa_strand == "-":
+        sa_5p_clip = int(m.group(1)) if (m := RIGHT_SOFTCLIP_PATTERN.match(sa_cigar)) is not None else 0
+
+    # check which one has less soft clips
+    return this_5p_clip < sa_5p_clip
 
 
 def filter_alignments(
@@ -396,15 +428,20 @@ def filter_ref_transcripts(
     """
 
     def keep_transcript(transcript: Transcript):
+        # check if it's on the gene of interest
         if transcript.gene_id != gene_id:
             return False
+        # check if it overlaps our region of interest
         if (
             max(block.end for block in transcript.blocks) < overlap.start
             or min(block.start for block in transcript.blocks) > overlap.end
         ):
             return False
+        # cehck if it's the correct strand
         if transcript.is_reverse != is_reverse:
-            logger.warning(f"Transcript {transcript.transcript_id} is on the wrong strand. Omitting from plot.")
+            logger.warning(
+                f"Reference transcript {transcript.transcript_id} is on the wrong strand. Omitting from plot."
+            )
             return False
         return True
 
@@ -426,6 +463,7 @@ def plot_fusion(
     Returns:
         figure: a matplotlib figure depicting the fusion event
     """
+    logger.info("Generating plot.")
     breakpoint1, breakpoint2 = breakpoints
 
     # filter the alignments
@@ -454,6 +492,14 @@ def plot_fusion(
     gene2_transcripts: List[Transcript] = filter_ref_transcripts(
         ref_transcripts, breakpoint2.gene_id, breakpoint2.is_reverse, Interval(*sorted((gene2_end, breakpoint2.pos)))
     )
+    if len(gene1_transcripts) == 0:
+        raise ValueError(
+            f"Could not find any reference transcripts overlapping the breakpoint for gene {breakpoint1.gene_id}"
+        )
+    if len(gene2_transcripts) == 0:
+        raise ValueError(
+            f"Could not find any reference transcripts overlapping the breakpoint for gene {breakpoint2.gene_id}"
+        )
 
     # compute the span we'll need for each side of the fusion
     gene1_start = (
