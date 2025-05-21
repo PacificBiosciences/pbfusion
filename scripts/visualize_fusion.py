@@ -48,7 +48,7 @@ MAX_REF_TRANSCRIPT_PROP = 0.5
 GENE_LINEWIDTH = 0.1
 
 LEFT_SOFTCLIP_PATTERN = re.compile(r"^(\d+)S")
-RIGHT_SOFTCLIP_PATTERN = re.compile(r".*(\d+)S$")
+RIGHT_SOFTCLIP_PATTERN = re.compile(r".*\D(\d+)S$")
 
 
 def parse_args() -> argparse.Namespace:
@@ -341,9 +341,12 @@ def read_fusion_alignments(bam_path: Path, read_names: List[str]) -> List[Fusion
         for alignment in bam_file.fetch(until_eof=True):
             if alignment.query_name in read_names:
 
+                if not alignment.has_tag("SA"):
+                    logger.warning(f"Skipping alignment for {alignment.query_name} which does not have an SA tag.")
+                    continue
                 # TODO: not sure why we're excluding reads with more that 2 suppl alignments
                 if len(alignment.get_tag("SA").split(";")) > 2:
-                    logger.warning(f"Skipping alignments for {alignment.query_name} which has more than 2 segments")
+                    logger.warning(f"Skipping alignment for {alignment.query_name} which has more than 2 segments.")
                     continue
 
                 # check if this alignment is the 5p end of the molecule
@@ -359,7 +362,7 @@ def read_fusion_alignments(bam_path: Path, read_names: List[str]) -> List[Fusion
                 except Exception as exc:
                     raise ValueError(
                         f"Error adding blocks for {alignment.query_name} at "
-                        f"{alignment.reference_name}:{alignment.query_alignment_start}"
+                        f"{alignment.reference_name}:{alignment.reference_start}"
                     ) from exc
 
     return list(alignments_by_name.values())
@@ -381,6 +384,7 @@ def _is_5p_alignment(alignment: pysam.AlignedSegment) -> bool:
         if not alignment.is_reverse
         else alignment.query_length - alignment.query_alignment_end
     )
+
     # and for the one in the SA tag
     _, _, sa_strand, sa_cigar, _, _ = sa_tag.split(",")
     sa_5p_clip = None
