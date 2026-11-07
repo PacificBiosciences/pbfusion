@@ -4,9 +4,9 @@
 
 Fusion gene caller for Iso-Seq sequencing data.
 
-Authors: [Roger Volden](https://github.com/velociroger-pb), [Zev Kronenberg](https://github.com/zeeev), [Daniel Baker](https://github.com/dnbaker), [Khi Pin Chua](https://github.com/proteinosome)
+Authors: [Roger Volden](https://github.com/velociroger-pb), [Zev Kronenberg](https://github.com/zeeev), [Daniel Baker](https://github.com/dnbaker), [Khi Pin Chua](https://github.com/proteinosome), [Ales Varabyou](https://github.com/alevar)
 
-Please refer to our [official pbbioconda page](https://github.com/PacificBiosciences/pbbioconda) for information on Installation, Support, License, Copyright, and Disclaimer.
+Please refer to our [official pbbioconda page](https://github.com/PacificBiosciences/pbbioconda) for information on Installation, Support, Copyright, and Disclaimer. See [License](#license) for licensing.
 
 
 ## Table of Contents ##
@@ -18,7 +18,8 @@ Please refer to our [official pbbioconda page](https://github.com/PacificBioscie
 6. [Documentation](#documentation)
 7. [Change log](#changelog)
 8. [Help](#help)
-9. [Disclaimer](#disclaimer)
+9. [License](#license)
+10. [Disclaimer](#disclaimer)
 
 
 ## Install <a name="install"></a>
@@ -28,7 +29,7 @@ Please refer to our [official pbbioconda page](https://github.com/PacificBioscie
 ```
 conda install -c bioconda pbfusion
 ```
-Binaries are also availible in the github releases.
+Binaries are also available in the [GitHub releases](https://github.com/PacificBiosciences/pbfusion/releases). Release archive contains the `pbfusion` executable for x86-64 Linux, its MD5 checksum, the license, and the third-party software notices.
 
 ## Usage <a name="usage"></a>
 
@@ -38,14 +39,39 @@ Binaries are also availible in the github releases.
 You can find GENCODE annotation files [here](https://www.gencodegenes.org/human/release_38.html).
 
 ```
+Cache exonic information from a gtf/gff file in binary format for faster `pbfusion discover` invocations.
+
 Usage: pbfusion gff-cache [OPTIONS] --gtf <ReferenceAnnotation>
 
 Options:
-  -g, --gtf <ReferenceAnnotation>            Input GTF file
-  -b, --gtf-out <BinaryReferenceAnnotation>  Output binary GTF file [default: *]
-  -v, --verbose...                           Enable verbose output
-  -h, --help                                 Print help information
-  -V, --version                              Print version information
+  -g, --gtf <ReferenceAnnotation>
+          Input GTF file
+      --gene-label <GENE_LABEL_MODE>
+          Select how gene labels are stored in the cached annotation. `auto` prefers `gene_name` and falls back to `gene_id` when needed. `gene-name` requires `gene_name`. `gene-id` always reports `gene_id`. Annotation identity is always keyed by `gene_id` [default: auto] [possible values: auto, gene-name, gene-id]
+  -b, --gtf-out <BinaryReferenceAnnotation>
+          Output binary GTF file [default: *]
+      --gtf-transcript-allow-lncRNA
+          Allow fusion partners to contain lncRNA annotations
+  -v, --verbose...
+          Enable verbose output
+      --log-level <LOG_LEVEL>
+          Alternative to repeated -v/--verbose: set log level via key.
+          Values: "error", "warn" (default), "info", "debug", "trace".
+          Enabling any level higher than "warn" also emits verbose output, including extra output files.
+          If -v/--verbose is set, this option is ignored.
+          Equivalence to -v/--verbose:
+                => "warn"
+             -v => "info"
+            -vv => "debug"
+           -vvv => "trace" [default: error]
+  -h, --help
+          Print help information (use `--help` for more detail)
+  -V, --version
+          Print version information
+
+Copyright (C) 2004-2026     Pacific Biosciences of California, Inc.
+This program comes with ABSOLUTELY NO WARRANTY; it is intended for
+Research Use Only and not for use in diagnostic procedures.
 ```
 
 `pbfusion` requires two input files and one option:
@@ -66,7 +92,9 @@ Options:
   -b <ADDITIONAL_BAMS>
           Aligned Iso-Seq data in BAM format. Accepts a path to a bam, a url (if compiled with curl support), or a fofn (file-of-filenames) file with one filename or url per line
   -g, --gtf <REF>
-          Reference gene annotations in GTF format. We also accept `gtf.bin` files as built by `pbfusion gff-cache`. This file must have `bin` as its suffix to be recognized. We also support gtf.bin.xz and gtf.bin.gz, compressed by xz and gzip, respectively. Recognition is based entirely on filename. Warning: the binary cached format has been altered since 0.3.3. You may need to re-generate your binary annotations.
+          Reference gene annotations in GTF format. We also accept `gtf.bin` files as built by `pbfusion gff-cache`. This file must have `bin` as its suffix to be recognized. We also support gtf.bin.xz and gtf.bin.gz, compressed by xz and gzip, respectively. Recognition is based entirely on filename
+      --gene-label <GENE_LABEL_MODE>
+          Select how gene labels are reported from GTF attributes. `auto` prefers `gene_name` and falls back to `gene_id` when needed. `gene-name` requires `gene_name`. `gene-id` always reports `gene_id`. Annotation identity is always keyed by `gene_id`. Cached `.bin` annotations keep the labels stored when the cache was built [default: auto] [possible values: auto, gene-name, gene-id]
   -o, --output-prefix <OUTPUT>
           Output prefix [default: none]
   -Q, --min-fusion-quality <MIN_FUSION_QUALITY>
@@ -88,12 +116,44 @@ Options:
   -m, --max-genes-in-event <MAX_GENES_IN_EVENT>
           Mark fusion groups involving > \[arg\] genes as low quality. This is a common source of false positives [default: 3]
   -r, --real-cell-filtering
+
+      --ref <FASTA>
+          Reference genome in FASTA format.
+          Enable this option to use the reference genome for
+          breakpoint refinement at unknown splice sites, by searching
+          for canonical GT/AG splice sites within the specified window around the breakpoint.
+      --splice-snap
+          Enable adjustment of breakpoints to splice sites.
+          When enabled, each breakpoint is adjusted to the nearest splice site within the specified window, if it improves the alignment score.
+          Add --ref to also consider unannotated GT/AG sites.
+      --breakpoint-refine-window <BREAKPOINT_REFINE_WINDOW>
+          Maximum allowed distance (in bp) for adjusting breakpoints.
+          A breakpoint may be adjusted when --splice-snap is set. [default: 10]
+      --refine-weight-known <SCORE>
+          Score for a breakpoint end landing on an annotated exon boundary [default: 5]
+      --refine-weight-novel <SCORE>
+          Score for a breakpoint end landing on an unannotated canonical GT/AG
+          splice site. Requires --ref; without it, unannotated sites are not scored. [default: 3]
+      --refine-weight-both <SCORE>
+          Bonus when both ends of a junction land on a splice site, annotated or not [default: 10]
+      --refine-penalty-match <SCORE>
+          Penalty per base that is changed in the read alignment by the refinement process but remains a match to the referece. [default: 0]
+      --refine-penalty-mismatch <SCORE>
+          Penalty per base that is changed in the read alignment by the refinement process and no longer matches the reference. [default: 1]
       --allow-immune
-          Permit fusion events identified involving primarily immunological genes and their pseudogenes. These are a common source of false positives and we mark them low-quality by default.
+          Permit fusion events identified involving primarily immunological genes and their pseudogenes.
+          These are a common source of false positives and we mark them low-quality by default.
       --allow-mito
-          Permit fusion events identified involving mitochondrial genes. These are a common source of false positives and we mark them low-quality by default.
+          Permit fusion events identified involving mitochondrial genes.
+          These are a common source of false positives and we mark them low-quality by default.
       --prom-filter <PROM_FILTER>
-          Filter rarer events involving genes with high numbers of fusion partners. These are a common source of false positives. Disable by setting `--prom-filter 0`. [default: 8]
+          Filter rarer events involving genes with high numbers of fusion partners.
+          These are a common source of false positives.
+          Disable by setting `--prom-filter 0`. [default: 8]
+      --gtf-transcript-allow-lncRNA
+          Allow fusion partners to contain lncRNA annotations
+      --min-fusion-fraction <MIN_FUSION_FRACTION>
+          Minimum fusion fraction relative to transcript count [default: 0.01]
   -v, --verbose...
           Enable verbose output
       --log-level <LOG_LEVEL>
@@ -107,11 +167,11 @@ Options:
             -vv => "DEBUG"
            -vvv => "TRACE" [default: error]
   -h, --help
-          Print help information (use `-h` for a summary)
+          Print help information (use `--help` for more detail)
   -V, --version
           Print version information
 
-Copyright (C) 2004-2023     Pacific Biosciences of California, Inc.
+Copyright (C) 2004-2026     Pacific Biosciences of California, Inc.
 This program comes with ABSOLUTELY NO WARRANTY; it is intended for
 Research Use Only and not for use in diagnostic procedures.
 ```
@@ -154,7 +214,7 @@ Filtering is now primarily done through adjusting the allowed score [default "ME
 The primary filtering options to reduce false positives are `--min-coverage` (`-c`), `--max-readthrough` (`-a`), `--min-mean-identity` (`-i`), `--min-mean-mapq` (`-p`), `--min-fusion-read-fraction` (`-M`), and `--max-variability` (`-s`).
 `--min-coverage` just filters out breakpoints based on their read support, where the default value is 2 to filter out singletons.
 `--max-readthrough` is used to discard reads that align to two genes next to each other in the genome [default 100kb].
-`--min-mean-identity` will assign low confidence to fusions with mean mapping identity lower than the threshold [0.85]. Sometimes in hard to map regions of the genome, the aligner will force an alignment through a region and incur a high edit distance.
+`--min-mean-identity` will assign low confidence to fusions with mean mapping identity lower than the threshold [0.93]. Sometimes in hard to map regions of the genome, the aligner will force an alignment through a region and incur a high edit distance.
 `--min-mean-mapq` default is set to `10` to reduce mapping errors.
 `--min-fusion-read-fraction` is used to filter long chains of genes.
 An example of this would be an IG alignment, where maybe 100 reads align to various annotated regions (eg. IGHA1, IGHV3-23, IGHV3-7, IGHG3, IGHJ5, IGHJ4, IGHJ3, IGHGP, IGHJ2, IGHJ6).
@@ -317,6 +377,23 @@ A candidate is marked as MEDIUM if it is not in any of the failing cases.
 ### Changelog <a name="changelog"></a>
 Changelog - PacBio Fusion Detection - pbfusion
 
+## v0.6.0 10/31/26
+### Changes
+This release adds optional breakpoint refinement to splice sites, makes fusion calls deterministic, and fixes several filtering bugs. Breakpoint grouping has changed, so results may differ slightly from v0.5.0 even with default settings.
+
+- Feature: Breakpoint refinement to splice sites (`--splice-snap`, off by default). Each breakpoint may shift to an annotated exon boundary within `--breakpoint-refine-window` bp (default 10) when that improves its score. With `--ref <FASTA>`, unannotated canonical GT/AG sites are also considered; the FASTA is indexed automatically if no `.fai` is present. Scoring is tunable with `--refine-weight-known`, `--refine-weight-novel`, `--refine-weight-both`, `--refine-penalty-match` and `--refine-penalty-mismatch`.
+- Feature: Add `--gene-label` to select how gene labels are reported from GTF attributes (`auto`, `gene-name`, or `gene-id`) while keeping annotation identity keyed by stable `gene_id` values internally.
+- Improvement: Fusion calls are deterministic: the same input and settings produce the same calls, coordinates and breakpoint IDs. Batches are written in input order, breakpoint IDs are assigned after the final sort, and ties between equally scoring annotation hits resolve to the smallest `gene_id`.
+- Improvement: Breakpoints are grouped by the set of genes with an exon within 10 bp of the breakpoint, rather than by the single gene each read was labelled with, so reads from the same junction are no longer split across groups where genes overlap.
+- Bug fix: Key annotation overlap and readthrough logic by `gene_id` instead of display labels, improving behavior when gene names are ambiguous or missing.
+- Bug fix: Overlapping-gene checks compare every gene pair instead of stopping at the first match.
+- Bug fix: Fix breakpoint ordering that could compare a pair's transcript ID against itself.
+- Bug fix: Calls whose minimum MAPQ is below `--min-min-mapq` are now marked low confidence; previously they passed the MAPQ filter. No effect at the default setting.
+- Bug fix: `--gtf-transcript-support-level-min` keeps transcripts at or better than the given level (lower is better); previously the comparison was inverted. No effect at the default setting, which keeps all transcripts.
+- Breaking: The binary annotation cache format has changed. Re-generate `.gtf.bin` files built with earlier versions using `pbfusion gff-cache`.
+- Build: Update `rust-htslib` to 1.0.0.
+- Development: Add an optional `dhat-heap` profiling feature.
+
 ## v0.5.0 11/29/24
 ### Changes
 The main focus on this update is to reduce the number of false positive calls by adjusting default parameters, and introducing new filters.
@@ -405,6 +482,12 @@ The main focus on this update is to reduce the number of false positive calls by
 ## Help <a name="help"></a>
 
 Please direct support/help/bug questions to [Github issue](https://github.com/PacificBiosciences/pbbioconda/issues)
+
+## License <a name="license"></a>
+
+pbfusion is distributed under the Pacific Biosciences Software License Agreement; see [LICENSE](LICENSE).
+
+The pbfusion executable includes third-party open-source software, each component licensed under its own terms. These components and their licenses are listed in [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt), which is also included in every release archive.
 
 ## Disclaimer <a name="disclaimer">
 
